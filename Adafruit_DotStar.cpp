@@ -31,10 +31,12 @@
 
 #define USE_HW_SPI 255 // Assign this to dataPin to indicate 'hard' SPI
 
-// Constructor for hardware SPI -- provide your own SPI object
-Adafruit_DotStar::Adafruit_DotStar(SPIClass* spi, uint16_t n, uint8_t o) :
+// Constructor for hardware SPI -- provide your own SPI object + speed
+// NOTE: for architectures that need a clock divider instead of a speed, the speed
+// will be ignored and you will default to about 8MHz (see code a bit further)
+Adafruit_DotStar::Adafruit_DotStar(SPIClass* spi, uint32_t spispeed, uint16_t n, uint8_t o) :
  numLEDs(n), dataPin(USE_HW_SPI), brightness(0), pixels(NULL),
- rOffset(o & 3), gOffset((o >> 2) & 3), bOffset((o >> 4) & 3), hwSPI(&SPI)
+ rOffset(o & 3), gOffset((o >> 2) & 3), bOffset((o >> 4) & 3), _oSPI(spi), _oSPISpeed(spispeed)
 {
   updateLength(n);
 }
@@ -44,7 +46,8 @@ Adafruit_DotStar::Adafruit_DotStar(uint16_t n, uint8_t o) :
  numLEDs(n), dataPin(USE_HW_SPI), brightness(0), pixels(NULL),
  rOffset(o & 3), gOffset((o >> 2) & 3), bOffset((o >> 4) & 3)
 {
-  _oSPI = SPI;        // Use default SPI port
+  _oSPI = &SPI;           // Use default SPI port
+  _oSPISpeed = 8000000;   // Default speed is 8MHz
   updateLength(n);
 }
 
@@ -120,12 +123,12 @@ void Adafruit_DotStar::hw_spi_init(void) { // Initialize hardware SPI
   _oSPI->setDataMode(SPI_MODE0);
  #else
   #ifdef ESP8266
-    _oSPI->setFrequency(8000000L);
+    _oSPI->setFrequency(_oSPISpeed);
     _oSPI->setBitOrder(MSBFIRST);
     _oSPI->setDataMode(SPI_MODE0);
    #elif defined(PIC32) || defined(ARDUINO_ARCH_SAMD)
     // Use begin/end transaction to set SPI clock rate; they are retained unless someone else uses the SPI bus...
-    _oSPI->beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
+    _oSPI->beginTransaction(SPISettings(_oSPISpeed, MSBFIRST, SPI_MODE0));
     _oSPI->endTransaction();
   #else
     _oSPI->setClockDivider((F_CPU + 4000000L) / 8000000L); // 8-ish MHz on Due
