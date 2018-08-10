@@ -31,11 +31,20 @@
 
 #define USE_HW_SPI 255 // Assign this to dataPin to indicate 'hard' SPI
 
+// Constructor for hardware SPI -- provide your own SPI object
+Adafruit_DotStar::Adafruit_DotStar(SPIClass* spi, uint16_t n, uint8_t o) :
+ numLEDs(n), dataPin(USE_HW_SPI), brightness(0), pixels(NULL),
+ rOffset(o & 3), gOffset((o >> 2) & 3), bOffset((o >> 4) & 3), hwSPI(&SPI)
+{
+  updateLength(n);
+}
+
 // Constructor for hardware SPI -- must connect to MOSI, SCK pins
 Adafruit_DotStar::Adafruit_DotStar(uint16_t n, uint8_t o) :
  numLEDs(n), dataPin(USE_HW_SPI), brightness(0), pixels(NULL),
  rOffset(o & 3), gOffset((o >> 2) & 3), bOffset((o >> 4) & 3)
 {
+  _oSPI = SPI;        // Use default SPI port
   updateLength(n);
 }
 
@@ -104,22 +113,26 @@ void Adafruit_DotStar::hw_spi_init(void) { // Initialize hardware SPI
   PORTB &= ~(_BV(PORTB1) | _BV(PORTB2)); // Outputs
   DDRB  |=   _BV(PORTB1) | _BV(PORTB2);  // DO (NOT MOSI) + SCK
 #elif (SPI_INTERFACES_COUNT > 0) || !defined(SPI_INTERFACES_COUNT)
-  SPI.begin();
+  _oSPI->begin();
  #if defined(__AVR__) || defined(CORE_TEENSY) || defined(__ARDUINO_ARC__) || defined(__ARDUINO_X86__)
-  SPI.setClockDivider(SPI_CLOCK_DIV2); // 8 MHz (6 MHz on Pro Trinket 3V)
+  _oSPI->setClockDivider(SPI_CLOCK_DIV2); // 8 MHz (6 MHz on Pro Trinket 3V)
+  _oSPI->setBitOrder(MSBFIRST);
+  _oSPI->setDataMode(SPI_MODE0);
  #else
   #ifdef ESP8266
-    SPI.setFrequency(8000000L);
-  #elif defined(PIC32)
-    // Use begin/end transaction to set SPI clock rate
-    SPI.beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
-    SPI.endTransaction();
+    _oSPI->setFrequency(8000000L);
+    _oSPI->setBitOrder(MSBFIRST);
+    _oSPI->setDataMode(SPI_MODE0);
+   #elif defined(PIC32) || defined(ARDUINO_ARCH_SAMD)
+    // Use begin/end transaction to set SPI clock rate; they are retained unless someone else uses the SPI bus...
+    _oSPI->beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
+    _oSPI->endTransaction();
   #else
-    SPI.setClockDivider((F_CPU + 4000000L) / 8000000L); // 8-ish MHz on Due
+    _oSPI->setClockDivider((F_CPU + 4000000L) / 8000000L); // 8-ish MHz on Due
+    _oSPI->setBitOrder(MSBFIRST);
+    _oSPI->setDataMode(SPI_MODE0);
   #endif
  #endif
-  SPI.setBitOrder(MSBFIRST);
-  SPI.setDataMode(SPI_MODE0);
 #endif
 }
 
@@ -127,7 +140,7 @@ void Adafruit_DotStar::hw_spi_end(void) { // Stop hardware SPI
 #ifdef __AVR_ATtiny85__
   DDRB &= ~(_BV(PORTB1) | _BV(PORTB2)); // Inputs
 #elif (SPI_INTERFACES_COUNT > 0) || !defined(SPI_INTERFACES_COUNT)
-  SPI.end();
+  _oSPI->end();
 #endif
 }
 
@@ -169,7 +182,7 @@ static void spi_out(uint8_t n) { // Clock out one byte
 
 // All other boards have full-featured hardware support for SPI
 
-#define spi_out(n) (void)SPI.transfer(n)
+#define spi_out(n) (void)_oSPI->transfer(n)
 // Pipelining reads next byte while current byte is clocked out
 #if (defined(__AVR__) && !defined(__AVR_ATtiny85__)) || defined(CORE_TEENSY)
  #define SPI_PIPELINE

@@ -41,6 +41,7 @@ class Adafruit_DotStar {
 
     Adafruit_DotStar(uint16_t n, uint8_t o=DOTSTAR_BRG);
     Adafruit_DotStar(uint16_t n, uint8_t d, uint8_t c, uint8_t o=DOTSTAR_BRG);
+    Adafruit_DotStar(SPIClass* spi, uint16_t n, uint8_t o=DOTSTAR_BRG);
    ~Adafruit_DotStar(void);
   void
     begin(void),                            // Prime pins/SPI for output
@@ -75,6 +76,7 @@ class Adafruit_DotStar {
     rOffset,                                // Index of red in 3-byte pixel
     gOffset,                                // Index of green byte
     bOffset;                                // Index of blue byte
+   SPIClass*  _oSPI;                        // Custom defined SPI, when applicable
 #ifdef __AVR__
   uint8_t
     dataPinMask,                            // If soft SPI, data pin bitmask
